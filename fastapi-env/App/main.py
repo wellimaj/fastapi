@@ -1,17 +1,18 @@
 import requests
 from endpoints import headers,URLS
-from fastapi import FastAPI,Depends
-from database import engine,SessionLocal
-from model import Base,tweet,tweetSchema
-from sqlalchemy.orm import Session
+from fastapi import FastAPI
 import time
 from datafetcher import dataFetcher
 app=FastAPI()
-Base.metadata.create_all(engine)
+
 from datapusher import dataPusher
+
 # main API takes user and keyword as path param
 @app.get('/v1/custom/{user}/{keyword}')
 def tweethandler(user,keyword):
+    if keyword==f"{{keyword}}":
+        return "no keyword entered"
+
     #tweets can be only searched by ID so converting username into ID here
     if not user.isnumeric():
         user=requests.get(URLS.byUsername+user,headers=headers).json()
@@ -32,7 +33,7 @@ def tweethandler(user,keyword):
             dataPusher(data['data'],user)
         else:
             data=requests.get(URLS.byIDandUser+user+URLS.byIDandUserafter+temp,headers=headers).json()
-            print("hi")
+           
             if "next_token" in data["meta"]:
                 temp=token+data['meta']["next_token"]
             
@@ -47,7 +48,7 @@ def tweethandler(user,keyword):
 @app.get('/v1/search/{user}')
 def index(user):
  
-    print(True,URLS.byId+user)
+    
     if user.isdigit():
         Userdata=requests.get(URLS.byId+user,headers=headers).json()
      
@@ -59,22 +60,7 @@ def index(user):
 def tweets(user):
     Userdata=requests.get("https://api.twitter.com/1.1/search/tweets.json?q="+user, 
 headers=headers).json()
-    print(type(Userdata["statuses"]))
+   
     return Userdata
 
-
-def get_db():
-    db=SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-@app.post('/tweet')
-def create(request:tweetSchema,db : Session = Depends(get_db)):
-    print(request)
-    newtweet=tweet(id=request.id,twitid=request.twitid,title=request.title)
-    db.add(newtweet)
-    db.commit()
-    db.refresh(newtweet)
-    return newtweet
 
